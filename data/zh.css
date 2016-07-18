@@ -1,0 +1,5 @@
+i, cite, em, var, address, dfn,
+.fangsong, .subtitle, .uniname {
+    font-style: normal;
+    font-family: STFangsong, FangSong, serif;
+}
