@@ -16,7 +16,7 @@
 
 <aside class="rightFloater">本文档包含特殊字符。若你的浏览器不支持渲染，可能会显示为问号、方框或者其他符号。</aside>
 
-<p>我们的目标是促进 UTF-8 编码的使用和支持，并推广它成为内存、磁盘存储和通讯等用途的默认文本字符串编码。我们相信，这种做法可以提高性能，降低软件的复杂性，并有助于避免多种 Unicode 相关的 bug。我们建议 Unicode（或广义来说，所有文本）的其他编码方式只应该用于少量需要性能优化的情况，主流用户应当避免接触。</p>
+<p>我们的目标是促进 UTF-8 编码的使用和支持，并推广它成为内存、磁盘存储和通信等用途的默认文本字符串编码。我们相信，这种做法可以提高性能，降低软件的复杂性，并有助于避免多种 Unicode 相关的 bug。我们建议 Unicode（或广义来说，所有文本）的其他编码方式只应该用于少量需要性能优化的情况，主流用户应当避免接触。</p>
 
 <p>一个具体的例子是非常流行的 UTF-16 编码（在 Windows 世界常常误称为“宽字符”或干脆称为“Unicode”）。我们认为它除了在 ICU 之类的专用文本处理库中可以使用以外，不应该在其他程序库的 API 中有一席之地。</p>
 
@@ -423,7 +423,7 @@ std::wstring widen(const std::string &amp;s);</code></pre>
 
 	<li>
 		<h3 id="faq.convert"><a class="aId" href="index.html#faq.convert">Q: 我有个基于 char 的大型 Windows 应用程序。使其支持 Unicode 最简单的方法是什么？</a></h3>
-		<p>保留这些 char。定义 <code>UNICODE</code> 和 <code>_UNICODE</code>，这样忘了使用 <code>narrow()</code>/<code>widen()</code> 的情况就会有编译错误。（在 Visual Studio 中勾上「<strong>使用 Unicode 字符集</strong>」选项）找出所有用到 <code>fstream</code> 和 <code>fopen()</code> 的地方，改成上述的宽字符重载。这样就基本完成了。</p>
+		<p>保留这些 char。定义 <code>UNICODE</code> 和 <code>_UNICODE</code>，这样忘了使用 <code>narrow()</code>/<code>widen()</code> 的情况就会有编译错误。（在 Visual Studio 中勾上“<strong>使用 Unicode 字符集</strong>”选项）找出所有用到 <code>fstream</code> 和 <code>fopen()</code> 的地方，改成上述的宽字符重载。这样就基本完成了。</p>
 		<p>如果你用到了不支持 Unicode 的第三方库，例如它会原样将文件名字符串传递给 <code>fopen()</code>，你得用上述像 <code>GetShortPathName()</code> 这样的工具来替代解决。</p>
 	</li>
 
@@ -501,7 +501,7 @@ std::wstring widen(const std::string &amp;s);</code></pre>
 
 <h2 id="donate"><a class="aId" href="index.html#donate">反馈</a></h2>
 
-<p>你可以在 Facebook <a href="https://www.facebook.com/UTF8Everywhere">UTF-8 Everywhere</a>主页上留下评论和反馈。我们非常感谢你的帮助和反馈。</p>
+<p>你可以在 Facebook <a href="https://www.facebook.com/UTF8Everywhere">UTF-8 Everywhere </a>主页上留下评论和反馈。我们非常感谢你的帮助和反馈。</p>
 
 <p style="text-align:center">
 <img src="data/utf8donate.png" alt="1UTF8gQmvChQ4MwUHT6XmydjUt9TsuDRn" /><br/>
