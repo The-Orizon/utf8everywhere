@@ -340,7 +340,7 @@ std::wstring widen(const std::string &amp;s);</code></pre>
 		<h3 id="faq.naive"><a class="aId" href="index.html#faq.naive">Q: 认为微软终将停止使用宽字符串是不是太幼稚了？</a></h3>
 		<p>A: 让我们首先看到他们支持 <code>CP_UTF8</code> 作为有效代码页的那一天。这不会很难。之后，我们认为 Windows 开发者就找不到理由继续使用宽字符 API。而且，加入对 <code>CP_UTF8</code> 的支持就能直接“修复”一些已有不支持 Unicode 的程序和库。</p>
 
-		<p>一些人说加入 <code>CP_UTF8</code> 支持会<em>破坏</em>现有使用 ANSI API 的程序，据说是因为这样，微软只好创建一个宽字符串 API。这是错的。甚至一些流行的 ANSI 编码也是变长的（例如 Shift JIS），所以正确的代码都能搞定变长编码。微软选择 UCS-2 单纯是历史原因。在 UTF-8 发明前，人们认为 Unicode “只是一个宽的 ASCII”，有必要使用定长编码。</p>
+		<p>一些人说加入 <code>CP_UTF8</code> 支持会<em>破坏</em>现有使用 ANSI API 的程序，据说是因为这样，微软只好创建一个宽字符串 API。这是错的。甚至一些流行的 ANSI 编码也是变长的（例如 Shift JIS），所以正确的代码都能搞定变长编码。微软选择 UCS-2 单纯是历史原因——在 UTF-8 发明前，人们认为 Unicode “只是一个宽的 ASCII”，<!-- 怎么表达这半句不是因为“只是”？ -->有必要使用定长编码。</p>
 	</li>
 
 	<li>
