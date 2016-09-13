@@ -39,7 +39,7 @@
 
 <p>微软经常误把“Unicode”和“宽字符”作为“UCS-2”和“UTF-16”的代名词。此外，由于 Windows API 不能接受 UTF-8 窄字符串，人们必须使用 <code>UNICODE</code> 预定义常量来编译代码。微软教育 Windows 的 C++ 程序员必须用“宽字符”来处理 Unicode（更有甚者，用 TCHAR，来让程序员通过改变编译器设定来选择是否干脆完全不支持 Unicode）。这样的混乱让许多 Windows 程序员困惑，到底应该怎样才能正确处理文本。</p>
 
-<p>与此同时，在 Linux 和 Web 世界，大家默许了 Unicode 的最佳编码是 UTF-8。即使它比起其他文本更能简短地表示英语和计算机语言（如 C++、HTML、XML 等），对于常用字符集，它却几乎不逊色于 UTF-16。</p>
+<p>与此同时，在 Linux 和 Web 世界，大家默许了 Unicode 的最佳编码是 UTF-8。即使它的主要优点在于比起其他文本更能简短地表示英语<!-- therefore -->和计算机语言（如 C++、HTML、XML 等），它在各种常用字符集上的表现也都几乎不逊色于 UTF-16。</p>
 
 <h2 id="facts"><a class="aId" href="index.html#facts">常识</a></h2>
 
