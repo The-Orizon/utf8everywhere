@@ -6,3 +6,6 @@ i, cite, .caption, .subtitle, .uniname {
     font-style: normal;
     font-family: STFangsong, FangSong, serif;
 }
+h1, .subtitle {
+    font-variant: normal; /* no small caps */
+}
