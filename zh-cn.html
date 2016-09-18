@@ -20,9 +20,9 @@
 
 <p>一个具体的例子是非常流行的 UTF-16 编码（在 Windows 世界常常误称为“宽字符”或干脆称为“Unicode”）。我们认为它除了在 ICU 之类的专用文本处理库中可以使用以外，不应该在其他程序库的 API 中有一席之地。</p>
 
-<p>本文还建议选择 UTF-8 作为 Windows 应用程序内部的字符串表示方式，尽管由于原生 API 不支持 UTF-8 和历史原因导致这种做法很冷门。我们认为，即使在这个平台上，本文所述论点的好处依旧胜过缺乏原生支持的所带来的坏处。此外，我们建议永远抛弃“ANSI 代码页”等概念，因为用户应当拥有在任何文本字符串中混用任何数量的语言的权利。</p>
+<p>本文还建议选择 UTF-8 作为 Windows 应用程序内部的字符串表示方式，尽管这种做法由于原生 API 不支持 UTF-8 和历史原因很冷门。我们认为，即使在这个平台上，本文所述论点的好处依旧胜过缺乏原生支持的所带来的坏处。此外，我们建议永远抛弃“ANSI 代码页”等概念，因为用户应当有权拥有在任何文本字符串中混用任何数量的语言。</p>
 
-<p>在整个行业中，许多本地化相关的 bug 都可<a href="http://www.joelonsoftware.com/articles/Unicode.html">归咎于</a>程序员对 Unicode 缺乏认知。然而，我们相信一个不是专注于文本本身的应用程序，理应有着可以无视编码问题的架构。例如，一个文件复制程序不应该写不同的代码来支持非英语文件名。在这份宣言中，我们也将解释，程序员如果不想关心 Unicode 的所有复杂细节或者<a href="#cookie">字符串内有什么</a>，应该做哪些事情。</p>
+<p>在整个行业中，许多本地化相关的 bug 都可<a href="http://www.joelonsoftware.com/articles/Unicode.html">归咎于</a>程序员对 Unicode 缺乏认知。然而，我们相信一个不是专注于文本本身的应用程序，理应有着可以无视编码问题的架构。例如，一个文件复制程序不应特地为了支持非英语文件名去用其他方式实现。在这份宣言中，我们也将解释，程序员如果不想关心 Unicode 的所有复杂细节或者<a href="#cookie">字符串内有什么</a>，应该做哪些事情。</p>
 
 <p>此外，我们想表明，在文本处理场景中，不应过分看重对 Unicode 码位的计数和遍历。许多开发者错误地认为码位就是 ASCII 字符的升级版。这产生了如 Python 字符串的 O(1) 码位访问之类的软件设计决策。但事实却是，Unicode 本质上更为复杂，<em>Unicode 字符</em>这个概念没有统一的定义。我们认为没有特别的理由把它定义为 Unicode 码位，而不是 Unicode 字素群、编码单元，或甚至是一些语言的词语。另一方面，把 UTF-8 的编码单元（字节）作为文本的基本单元似乎很有用，比如在解析常用的文本数据格式有优势。UTF-8 的特性造就了这个结果。字素、编码单元、码位等 Unicode 相关的术语将在<a href="#characters">第 5 节</a>中解释。对已编码的文本字符串进行操作将在<a href="#textops">第 7 节</a>中讨论。</p>
 
@@ -132,7 +132,7 @@
 
 	<p>事实不是这样。仅有人工构造的，且只含有 U+0800 到 U+FFFF 范围内的文本示例，才能节省一半内存。然而计算机之间文本接口的使用远超其他文本数据的用途。这包括 XML、HTTP、文件路径和配置文件——它们几乎都仅使用了 ASCII 字符。而且事实上，UTF-8 在各个亚洲国家广为使用。</p>
 
-	<p>在专门储存中文书籍的场合，UTF-16 可能还是一种合理的优化。一旦从这样的数据库取出文本，就应该将其转为和世界接轨的标准编码。无论采用哪种方案，在存储成本较高时，人们往往会使用无损压缩。这样的话，UTF-8 和 UTF-16 占用的储存空间就差不多了。此外，“在上述语言中，一个字符比一个拉丁字符含有的信息量更大，因此其占用更多空间是合情合理的。”（Tronic，<a href="http://programmers.stackexchange.com/a/102211/34925">UTF-16 是有害的</a>）</p>
+	<p>在专门储存中文书籍的场合，UTF-16 可能还是一种合理的优化。一旦从这样的数据库取出文本，就应该将其转为和世界接轨的标准编码。无论采用哪种方案，在存储成本较高时，人们往往会使用无损压缩。这样的话，UTF-8 和 UTF-16 占用的储存空间就差不多了。此外，“在上述语言中，一个字符比一个拉丁字符含有的信息量更大，因此其占用更多空间是合情合理的。”（Tronic，<a href="https://programmers.stackexchange.com/a/102211/34925">UTF-16 是有害的</a>）</p>
 
 	<p>这是一个简单实验的结果。第一列是某网页（《日本》，2012 年 1 月 1 日取自日语维基百科）的 HTML 源代码占用的空间。第二列是相应删除标记的纯文本，即“全选、复制、粘贴到纯文本文件”的结果。</p>
 
@@ -340,7 +340,7 @@ std::wstring widen(const std::string &amp;s);</code></pre>
 		<h3 id="faq.naive"><a class="aId" href="#faq.naive">Q: 认为微软终将停止使用宽字符串是不是太幼稚了？</a></h3>
 		<p>A: 让我们首先看到他们支持 <code>CP_UTF8</code> 作为有效代码页的那一天。这不会很难。之后，我们认为 Windows 开发者就找不到理由继续使用宽字符 API。而且，加入对 <code>CP_UTF8</code> 的支持就能直接“修复”一些已有不支持 Unicode 的程序和库。</p>
 
-		<p>一些人说加入 <code>CP_UTF8</code> 支持会<em>破坏</em>现有使用 ANSI API 的程序，据说是因为这样，微软只好创建一个宽字符串 API。这是错的。甚至一些流行的 ANSI 编码也是变长的（例如 Shift JIS），所以正确的代码都能搞定变长编码。微软选择 UCS-2 单纯是历史原因——在 UTF-8 发明前，人们认为 Unicode “只是一个宽的 ASCII”，有必要使用定长编码。</p>
+		<p>一些人说加入 <code>CP_UTF8</code> 支持会<em>破坏</em>现有使用 ANSI API 的程序，据说是因为这样，微软只好创建一个宽字符串 API。这是错的。甚至一些流行的 ANSI 编码也是变长的（例如 Shift JIS），所以正确的代码都能搞定变长编码。微软选择 UCS-2 单纯是历史原因——在 UTF-8 发明前，人们认为 Unicode “只是一个宽的 ASCII”，且还认为使用定长编码很重要。</p>
 	</li>
 
 	<li>
@@ -496,7 +496,7 @@ std::wstring widen(const std::string &amp;s);</code></pre>
 
 	<li><a href="http://cppcms.sourceforge.net/boost_locale/html/">Boost.Locale</a>——C++ 的高质量本地化方案。</li>
 
-	<li>Artyom Beilis 在 StackOverflow 上提问“<a href="http://programmers.stackexchange.com/questions/102205/should-utf-16-be-considered-harmful">UTF-16 有害吗？</a>”</li>
+	<li>Artyom Beilis 在 StackOverflow 上提问“<a href="https://programmers.stackexchange.com/questions/102205/should-utf-16-be-considered-harmful">UTF-16 有害吗？</a>”</li>
 
 	<li><a href="https://dev.twitter.com/docs/counting-characters">Twitter 如何计数字符</a></li>
 </ul>
