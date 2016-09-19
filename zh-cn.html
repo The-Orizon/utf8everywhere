@@ -122,6 +122,9 @@
 
 		<dt>字素群 (Grapheme cluster)</dt>
 		<dd>“应该放在一起”的已编码的字符序列。<sup>[§2.11]</sup> 字素群可以近似地看作语言中立的用户观感字符。例如它们可适用于光标移动和选择。</dd>
+
+		<dt>字模 (Glyph)</dt>
+		<dd>一种字体中的单个特定形状。字体是字模的集合，由字体设计师设计。文本成型和渲染引擎负责将码位序列转换成为特定字体中字模的序列。这个转换的规则可能很复杂且取决于语言环境设定。这不在 Unicode 标准范围之内。</dd>
 	</dl>
 
 	<p>“字符”可以代表以上任何概念。Unicode 标准用“字符”作为“<em>已编码字符</em>”的同义词。<sup>[§3.4]</sup>
@@ -458,7 +461,7 @@ std::wstring widen(const std::string &amp;s);</code></pre>
 
 <p>本宣言的作者是 <a href="http://meshnotes.com/9SrRpAypTr8e">Pavel Radzivilovsky</a>、<a href="http://stannum.co.il/about">Yakov Galka</a> 和 <a href="http://slavanov.com/">Slava Novgorodov</a>。这是我们基于经验和现实中程序员对于 Unicode 犯下真正的错误，遇到真正的困难的结晶。我们的目的是呼吁加深对文本问题的认识，为业界降低面向 Unicode 编程的难度抛砖引玉，最终提升工程师做出的程序的用户体验。我们与 Unicode 联盟无关。</p>
 
-<p>特别感谢 Glenn Linderman 提供关于 Python 的信息，Markus Künne、Jelle Geerts 和 Lazy Rui 反馈这篇文档的缺陷和拼写错误。</p>
+<p>特别感谢 Glenn Linderman 提供关于 Python 的信息，Markus Künne、Jelle Geerts、Lazy Rui 和 Jan Rüegg 反馈这篇文档的缺陷和拼写错误。</p>
 
 <p>本文大部分灵感来源于 <a href="http://programmers.stackexchange.com/questions/102205/should-utf-16-be-considered-harmful">StackOverflow 上 Artyom Beilis 引发的讨论</a>，他是 Boost.Locale 的作者。还有些灵感来源于 <a href="http://www.visionmap.com">VisionMap</a> 的开发约定以及 Michael Hartl 的 <a href="http://tauday.com/tau-manifesto">tauday.org</a>。</p>
 
@@ -513,7 +516,7 @@ std::wstring widen(const std::string &amp;s);</code></pre>
 
 <table class="layoutTable" style="border-top:1px solid silver; border-bottom:1px solid silver; padding:1ex 0ex; margin:1.5em 0 0.5em 0"><tr>
 <td><a href="https://validator.w3.org/check?uri=referer"><img src="https://www.w3.org/Icons/valid-xhtml10" alt="Valid XHTML 1.0 Strict"/></a> <a href="https://jigsaw.w3.org/css-validator/check/referer"><img src="https://jigsaw.w3.org/css-validator/images/vcss" alt="Valid CSS!"/></a></td>
-<td style="text-align:right"><a href="http://utf8everywhere.org/">原文</a>更新时间: 2016-02-07<br />译文更新时间: 2016-09-17</td>
+<td style="text-align:right"><a href="http://utf8everywhere.org/">原文</a>更新时间: 2016-07-19<br />译文更新时间: 2016-09-17</td>
 </tr></table>
 </div>
 
