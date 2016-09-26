@@ -1,11 +1,11 @@
-em {
+em:lang(zh) {
     font-style: normal;
     font-weight: bold;
 }
-i, cite, .caption, .subtitle, .uniname {
+i:lang(zh), cite:lang(zh), .caption:lang(zh), .subtitle:lang(zh), .uniname:lang(zh) {
     font-style: normal;
     font-family: STFangsong, FangSong, serif;
 }
-h1, .subtitle, .uniname {
+h1:lang(zh), .subtitle:lang(zh), .uniname:lang(zh) {
     font-variant: normal; /* no small caps */
 }
