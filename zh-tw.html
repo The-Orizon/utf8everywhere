@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-Hant-TW" xml:lang="zh-Hant-TW">
+<head>
+	<title>UTF-8 遍地開花</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+	<link rel="stylesheet" type="text/css" href="data/style.css"/>
+	<link rel="stylesheet" type="text/css" href="data/zh.css"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1"/>
+</head>
+<body>
+<div class="topDiv">
+<h1><a class="aId" href="#">UTF-8 遍地開花</a></h1>
+<p class="subtitle">宣言</p>
+
+<h2 id="intro"><a class="aId" href="#intro">本文的目的</a></h2>
+
+<aside class="rightFloater">本文件包含特殊字元。若你的瀏覽器不支援渲染，可能會顯示為問號、方框或者其他符號。</aside>
+
+<p>我們的目標是促進 UTF-8 編碼的使用和支援，並推廣它成為記憶體、磁碟儲存和通訊等用途的預設文字字串編碼。我們相信，這種做法可以提高效能，降低軟體的複雜性，並有助於避免多種 Unicode 相關的 bug。我們建議 Unicode（或廣義來說，所有文字）的其他編碼方式只應該用於少量需要效能優化的情況，主流使用者應當避免接觸。</p>
+
+<p>一個具體的例子是非常流行的 UTF-16 編碼（在 Windows 世界常常誤稱為“寬字元”或乾脆稱為“Unicode”）。我們認為它除了在 ICU 之類的專用文字處理庫中可以使用以外，不應該在其他程式庫的 API 中有一席之地。</p>
+
+<p>本文還建議選擇 UTF-8 作為 Windows 應用程式內部的字串表示方式，儘管由於原生 API 不支援 UTF-8 和歷史原因，很少有人採用這種做法。我們認為，即使在這個平臺上，本文所述論點的好處依舊勝過缺乏原生支援的所帶來的壞處。此外，我們建議永遠拋棄“ANSI 內碼表”等概念，因為使用者應當有權在任何文字字串中混用任何數量的語言。</p>
+
+<p>在整個行業中，許多本地化相關的 bug 都可<a href="http://www.joelonsoftware.com/articles/Unicode.html">歸咎於</a>程式設計師對 Unicode 缺乏認知。然而，我們相信一個不是專注於文字本身的應用程式，理應有著可以無視編碼問題的架構。例如，一個檔案複製程式不應特地為了支援非英語檔名而用其他方式實現。在這份宣言中，我們也將解釋，程式設計師如果不想關心 Unicode 的所有複雜細節或者<a href="#cookie">字串內有什麼</a>，應該做哪些事情。</p>
+
+<p>此外，我們想表明，在文字處理場景中，不應過分看重對 Unicode 碼位的計數和遍歷。許多開發者錯誤地認為碼位就是 ASCII 字元的升級版。這產生了如 Python 字串的 O(1) 碼位訪問之類的軟體設計決策。但事實卻是，Unicode 本質上更為複雜，<em>Unicode 字元</em>這個概念沒有統一的定義。我們認為沒有特別的理由把它定義為 Unicode 碼位，而不是 Unicode 語素群、編碼單元，或甚至是一些語言的詞語。另一方面，把 UTF-8 的編碼單元（位元組）作為文字的基本單元似乎很有用，比如在解析常用的文字資料格式有優勢。UTF-8 的特性造就了這個結果。語素、編碼單元、碼位等 Unicode 相關的術語將在<a href="#characters">第 5 節</a>中解釋。對已編碼的文字字串進行操作將在<a href="#textops">第 7 節</a>中討論。</p>
+
+<h2 id="background"><a class="aId" href="#background">背景</a></h2>
+
+<p>1988 年，Joseph D. Becker 釋出了<a href="http://unicode.org/history/unicode88.pdf">第一個 Unicode 提議草案</a>。他的設計天真地建立在 16 位元就足夠表示一個字元的假設上。1991 年，Unicode 標準（又名“統一碼”、“萬國碼”）的第一個版本釋出，但限制碼位為 16 位元長。在隨後的幾年裡，許多系統都增加了 Unicode 支援，並切換到了 UCS-2 編碼。Unicode 尤其吸引當時的新技術，如 Qt 框架（1992）、Windows NT 3.1（1993）與 Java（1995）。</p>
+
+<p>然而，人們很快發現每個字元 16 位元並不能滿足 Unicode 的需求。1996年，為了確保現有的系統可以支援非 16 位元的字元，人們發明了 UTF-16。但是，它恰恰偏離了選擇 16 位元定長編碼的初衷。目前，Unicode 收錄了超過 109449 個字元，其中大約有 74500 個中日韓表意文字。</p>
+
+<div style="text-align:center">
+	<img src="data/nagoya-museum.jpg" style="text-align: center; max-width: 100%; width: 480px;" alt="一個小孩在以文字編碼為主題的海報前玩編碼遊戲。"/>
+	<div style="margin:1ex;" class="caption">名古屋市科學館。Vadim Zlotnik 攝。</div>
+</div>
+
+<p>微軟經常誤把“Unicode”和“寬字元”作為“UCS-2”和“UTF-16”的代名詞。此外，由於 Windows API 不能接受 UTF-8 窄字串，人們必須使用 <code>UNICODE</code> 預定義常量來編譯程式碼。微軟教育 Windows 的 C++ 程式設計師必須用“寬字元”來處理 Unicode（更有甚者，用 TCHAR，來讓程式設計師通過改變編譯器設定來選擇是否乾脆完全不支援 Unicode）。這樣的混亂讓許多 Windows 程式設計師困惑，到底應該怎樣才能正確處理文字。</p>
+
+<p>與此同時，在 Linux 和 Web 世界，大家默許了 Unicode 的最佳編碼是 UTF-8。即使它的主要優點在於比起其他文字更能簡短地表示英語和計算機語言（如 C++、HTML、XML 等），它在各種常用字符集上的表現也都幾乎不遜色於 UTF-16。</p>
+
+<h2 id="facts"><a class="aId" href="#facts">常識</a></h2>
+
+<ul>
+	<li>在 UTF-8 和 UTF-16 編碼裡，一個碼位最多都要佔 4 個位元組。</li>
+
+	<li>UTF-8 與位元組順序無關。UTF-16 有兩種位元組順序：UTF-16LE 和 UTF-16BE（分別是小尾序和大尾序）。在這裡我們統稱為 UTF-16。</li>
+
+	<li>寬字元在某些平臺上佔 2 個位元組，另一些平臺上佔 4 個位元組。</li>
+
+	<li>對 UTF-8 和 UTF-32 字串排序可以得到和字典序相同的結果，UTF-16 則不能。（譯者注：Unicode 碼位的漢字排序是康熙字典序，而不是新華字典序。Unihan 資料庫可用於實現拼音排序）</li>
+
+	<li>UTF-8 可以高效表示英文字母和其他 ASCII 字元（每字元一個位元組），而 UTF-16 只對一部分亞洲字符集有利（只需 2 位元組，UTF-8 需要 3 位元組）。這也是為什麼 Web 世界最喜好 UTF-8 的原因。英語書寫的 HTML/XML 標籤摻雜了任何語言的正文文字。西里爾語、希伯來語等其他幾個常用 Unicode 區塊在 UTF-16 和 UTF-8 都佔 2 個位元組。</li>
+
+	<li>UTF-16 經常被誤以為是定長編碼，即使是 Windows 自帶的程式也如此：Windows（Vista 之前）的純文字編輯控制元件中，佔 4 個位元組的 UTF-16 字元需要按兩下退格鍵才能刪掉。在 Windows 7 中，控制檯把此類字元顯示成兩個亂碼字，無論選擇什麼字型。</li>
+
+	<li>許多適用於 Windows 的第三方庫不支援 Unicode：它們接受窄字串引數，然後傳遞給 ANSI API。有時甚至檔名也是如此。這種問題通常無解，因為一個字串可能無法在任何 ANSI 內碼表完整表示（如果它包含 Unicode 各個區塊的大雜燴）。Windows 程式設計師一般會去查詢這個檔案（如果已經存在）的 8.3 DOS 短檔名來傳遞給這樣的庫。如果要建立一個不存在的檔案，或者 8.3 路徑長度超過了 <code>MAX_PATH</code>，又或者作業系統設定裡禁用了短檔名的生成，那就無法實現了。</li>
+
+	<li>在 C++ 中，<code>std::exception::what()</code> 只能用 UTF-8 編碼來返回 Unicode。<code>localeconv</code> 只有使用 UTF-8 才能支援 Unicode。</li>
+
+	<li>UTF-16 在今天仍然流行，即使是在 Windows 世界以外。 Qt、Java、C#、Python（CPython 參考實現 3.3 版本之前，<a href="#faq.python">見下文</a>）以及 <a href="http://en.wikipedia.org/wiki/International_Components_for_Unicode">ICU</a>，內部都使用 UTF-16 來表示字串。</li>
+</ul>
+
+
+<h2 id="cookie"><a class="aId" href="#cookie">不透明資料引數</a></h2>
+
+<p>我們再談檔案複製程式。在 UNIX 世界裡，幾乎所有窄字串都預設是 UTF-8。正因如此，檔案複製程式的作者並不需要在意 Unicode。因為引數是作為不透明資料，即 <a href="http://en.wikipedia.org/wiki/Opaque_data_type">cookie</a>，所以只要用 ASCII 字串作為檔名引數測試成功，程式就自動支援了任何語言的檔名。檔案複製程式的程式碼不需要做<em>任何</em>改動就能支援外國語言。<code>fopen()</code> 函式完美支援 Unicode，<code>argv</code> 亦然。</p>
+
+<p>現在讓我們看看 Microsoft Windows，基於 UTF-16 架構，是怎麼做的。使檔案拷貝程式支援多個 Unicode 區塊的大雜燴（多語種混合）需要一些奇技淫巧。首先，應用程式必須在編譯時開啟 Unicode 支援。這樣的話，程式不能有 C 語言標準形參的 <code>main()</code> 函式。它得能接受 UTF-16 編碼的 <code>argv</code>。要把一個本為窄字串寫的 Windows 程式改造成支援 Unicode，開發者需要深度重構，照顧好每一個字串變數。</p>
+
+<p>MSVC 自帶的標準庫對 Unicode 支援得很糟糕。它把窄字串引數直接傳遞到作業系統的 ANSI API，沒辦法過載。改變 <code>std::locale</code> 也沒用。沒法用 C++ 的標準特性來開啟 Unicode 檔名的檔案。開啟檔案的標準方法是：</p>
+
+<pre><code>std::fstream fout(&quot;abc.txt&quot;);</code></pre>
+
+<p>解決這個問題的正確方法是用微軟自己發明的補救方法來接受寬字串引數，而這是一個非標準擴充套件。</p>
+
+<p>在 Windows 中，<code>HKLM\SYSTEM\CurrentControlSet\Control\Nls\CodePage\ACP</code> 登錄檔鍵可以允許 ANSI API 支援非 ASCII 字元，但是隻能選擇一個固定的 ANSI 內碼表。或許 65001 值可以解決 Windows 的 cookie 問題，然而微軟沒實現它。如果微軟實現了這個 <abbr title="ANSI Code Page, ANSI 內碼表">ACP</abbr> 值，就能夠在 Windows 平臺上促進 UTF-8 的廣泛接受。</p>
+
+<p>對於 Windows 程式設計師和跨平臺庫廠商，我們將在“<a href="#windows">如何在 Windows 上處理文字</a>”一節中討論我們提出的處理文字字串和重構程式、增強 Unicode 支援的辦法。</p>
+
+
+<h2 id="characters"><a class="aId" href="#characters">字形、語素群和其他 Unicode 概念</a></h2>
+	<p>這裡是根據 Unicode 標準，對字元、碼位、編碼單元和語素群之定義的摘錄。建議參考 Unicode 標準相關章節的詳細說明。</p>
+
+	<aside class="rightFloater"><p class="display" style="font-size:1.5em">Приве́т नमस्ते שָׁלוֹם</p><p>你看到了幾個<em>字元</em>？</p></aside>
+
+	<dl>
+		<dt>碼位 (Code point)</dt>
+		<dd>Unicode 編碼空間的任何數值。<sup>[§3.4, D10]</sup> 例如：U+3243F。</dd>
+
+		<dt>編碼單元 (Code unit)</dt>
+		<dd>可以表示一段已編碼文字的最小位元組合。<sup>[§3.9, D77]</sup> 例如，UTF-8、UTF-16 和 UTF-32 分別使用 8 位元、16 位元和 32 位元編碼單元。上述碼位可以編碼成四個 UTF-8 編碼單元“<code>f0 b2 90 bf</code>”，兩個 UTF-16 編碼單元“<code>d889 dc3f</code>”，一個 UTF-32 編碼單元“<code>0003243f</code>”。請注意，這僅僅是<em>一組位元</em>序列；它們儲存在面向位元組的媒體上的方式取決於特定編碼的位元組順序。當儲存上述 UTF-16 碼位時，UTF-16BE 會轉換為“<code>d8 89 dc 3f</code>”，UTF-16LE 會轉換為“<code>89 d8 3f dc</code>”。</dd>
+
+		<dt>抽象字元 (Abstract character)</dt>
+		<dd>
+			<p>一個用於組織、控制或表示文字資料的資訊單元。<sup>[§3.4, D7]</sup> 該標準在 3.1 節進一步說道：</p>
+
+			<blockquote><p>對於 Unicode 標準，[...] 收錄本身是開放的。因為 Unicode 是一種通用編碼，任何抽象字元只要能被編碼，就可能成為編碼的候選，無論這個字元是否已知。</p></blockquote>
+
+			<p>這個定義的確很抽象。只要是人能想到的任何字元，就<em>是</em>一個抽象字元。例如，<img src="data/glyph-ungwe.png" style="vertical-align: -1ex" alt=""/> <em>精靈語 tengwar 字母 ungwe</em> 是一個抽象的字元，雖然它尚不能用 Unicode 表示。</p>
+		</dd>
+
+		<dt>已編碼字元 (Encoded character, Coded character)</dt>
+		<dd>
+			<p>碼位和抽象字元之間的對映。<sup>[§3.4, D11]</sup> 例如，U+1F428 是一個代表抽象字元 🐨 <span class="uniname">考拉</span>的已編碼字元。</p>
+
+			<p>這種對映是既不是雙射，也不是單射，更不是滿射：</p>
+
+			<ul>
+				<li>代理字元（surrogate），非字元（noncharacter）和未分配的碼位完全不對應抽象字元。</li>
+				<li>一些抽象字元可以由不同的碼位進行編碼；U+03A9 <span class="uniname">希臘大寫字母 omega</span> 和 U+2126 <span class="uniname">歐姆符號</span> 都對應於同一個抽象字元“Ω”，<em>必須同等對待</em>。</li>
+				<li>一些抽象字元無法用單個碼位進行編碼，要用已編碼字元的<em>序列</em>才能表示它們。例如，表示抽象字元 ю́ <em>帶銳音符的西里爾小寫字母 yu</em> 的唯一方法是使用 U+044E <span class="uniname">西里爾小寫字母 yu</span> 和 U+0301 <span class="uniname">組合銳音符</span> 這個序列。</li>
+			</ul>
+
+			<p>此外，一些抽象字元不僅有單碼位表示方法，<em>還有</em>多碼位表示方法。抽象字元 ǵ 可以用單一碼位 U+01F5 <span class="uniname">帶銳音符的拉丁小寫字母 g</span> 編碼，或者用 &lt;U+0067 <span class="uniname">拉丁小寫字母 g</span>, U+0301 <span class="uniname">組合銳音符</span>&gt; 這個序列。</p>
+		</dd>
+
+		<dt>使用者認知字元 (User-perceived character)</dt>
+		<dd>任何終端使用者所認為的字元。這個概念與語言有關。例如，“ch”在英語和拉丁文中是兩個字母，而在捷克語和斯洛伐克語中則是一個字母。</dd>
+
+		<dt>語素群 (Grapheme cluster)</dt>
+		<dd>“應該放在一起”的已編碼的字元序列。<sup>[§2.11]</sup> 語素群可以近似地看作語言中立的使用者認知字元。例如它們可適用於游標移動和選擇。</dd>
+
+		<dt>字形 (Glyph)</dt>
+		<dd>一種字型中的單個特定形狀。字型是字形的集合，由字體設計師設計。文字成型和算繪引擎負責將碼位序列轉換成為特定字型中字形的序列。這個轉換的規則可能很複雜且取決於語言環境設定。這不在 Unicode 標準範圍之內。</dd>
+	</dl>
+
+	<p>“字元”可以代表以上任何概念。Unicode 標準用“字元”作為“<em>已編碼字元</em>”的同義詞。<sup>[§3.4]</sup>
+	程式語言或程式庫文件中的“字元”通常是指一個編碼單元。如果問終端使用者一個字串中字元 的數量，他會數“使用者認知字元”。根據一個程式設計師對 Unicode 瞭解程度的不同，他可能認為“字元”是編碼單元、碼位或者語素群。例如這是 <a href="https://dev.twitter.com/docs/counting-characters">Twitter 計算字元的方式</a>。在我們看來，一個字串長度函式對字串“🐨”不一定要返回 1 才算 Unicode 相容。</p>
+
+<h2 id="asian"><a class="aId" href="#asian">亞洲語言文字：UTF-8 與 UTF-16</a></h2>
+	<p>因此，在 UTF-8 和 UTF-16 中大多數 Unicode 碼位都佔相同的位元組數。包括俄語、希伯來語、希臘語，和所有非 <abbr title="基本多文種平面，Basic Multilingual Plane">BMP</abbr> 碼位在兩種編碼中都佔了 2 或 4 位元組。UTF-16 編碼的拉丁字母、一些標點符號和 ASCII 碼中的其他字元佔了更多空間，而 UTF-8 編碼的一部分亞洲字元則佔用了更多空間。亞洲程式設計師難道不能轉儲 UTF-16，從而使每個字理論上節省 50% 的記憶體嗎？</p>
+
+	<p>事實不是這樣。僅有人工構造的，且只含有 U+0800 到 U+FFFF 範圍內的文字示例，才能節省一半記憶體。然而計算機之間文字介面的使用遠超其他文字資料的用途。這包括 XML、HTTP、檔案路徑和配置檔案——它們幾乎都僅使用了 ASCII 字元。而且事實上，UTF-8 在各個亞洲國家廣為使用。</p>
+
+	<p>在專門儲存中文書籍的場合，UTF-16 可能還是一種合理的優化。一旦從這樣的資料庫取出文字，就應該將其轉為和世界接軌的標準編碼。無論採用哪種方案，在儲存成本較高時，人們往往會使用無失真壓縮。這樣的話，UTF-8 和 UTF-16 佔用的儲存空間就差不多了。此外，“在上述語言中，一個字元比一個拉丁字元含有的資訊量更大，因此其佔用更多空間是合情合理的。”（Tronic，<a href="https://programmers.stackexchange.com/a/102211/34925">UTF-16 是有害的</a>）</p>
+
+	<p>這是一個簡單實驗的結果。第一列是某網頁（《日本》，2012 年 1 月 1 日取自日語維基百科）的 HTML 原始碼佔用的空間。第二列是相應刪除標記的純文字，即“全選、複製、貼上到純文字檔案”的結果。</p>
+
+	<table class="basicTable" style="width:100%">
+		<tbody>
+			<tr><th></th><th>HTML 原始碼（與 UTF-8 比較）</th><th>純文字（與 UTF-8 比較）</th></tr>
+			<tr><th>UTF-8</th><td>767 KB (0%)</td><td>222 KB (0%)</td></tr>
+			<tr><th>UTF-16</th><td>1 186 KB (+55%)</td><td>176 KB (−21%)</td></tr>
+			<tr><th>UTF-8，ZIP 壓縮</th><td>179 KB (−77%)</td><td>83 KB (−63%)</td></tr>
+			<tr><th>UTF-16LE，ZIP 壓縮</th><td>192 KB (−75%)</td><td>76 KB (−66%)</td></tr>
+			<tr><th>UTF-16BE，ZIP 壓縮</th><td>194 KB (−75%)</td><td>77 KB (−65%)</td></tr>
+		</tbody>
+	</table>
+
+	<p>可以看出，UTF-16 對於實際資料比 UTF-8 多佔用約 50％ 的空間，對亞洲語言純文字也僅僅節省了 20%，並很難超越通用壓縮演算法。</p>
+
+<h2 id="textops"><a class="aId" href="#textops">已編碼字串中的文字操作</a></h2>
+	<p>流行的基於文字的資料格式（例如 CSV、XML、HTML、JSON、RTF 和計算機程式原始碼）常常包含 ASCII 字元作為結構控制元素，並且可以包含 ASCII 和非 ASCII 的文字資料字串。用可變長編碼來操作可能看起來很困難，因為其中繼承自 ASCII 的碼位比其他碼位短，而字串中已編碼字元間的界限不是一望即知。這推動了軟體架構選擇 UCS-4 定長編碼（如 <a href="#faq.python">Python v3.3</a>）。其實，這既不必要也不能解決我們知道的任何實際問題。</p>
+
+	<p>UTF-8 編碼在設計上保證了一個 ASCII 字元或子字串永遠不會匹配到一個多位元組編碼的字元中間。這在 UTF-16 中也適用。這兩個編碼中，多位元組編碼的碼位的編碼單元會將 <abbr title="Most Significant Bit, 最高有效位">MSB</abbr> 設為 1。</p>
+
+	<p>比如要找 HTML 標籤的開始記號“&lt;”，或在 UTF-8 編碼的 SQL 語句中找到單引號（'）來預防 SQL 注入，這和在全英文 ASCII 文字字串中做法一樣。UTF-8 的編碼方式保證了這行得通。具體來說，每一個非 ASCII 字元在 UTF-8 中會編碼為一系列位元組，每個位元組的值都大於 127。一個樸素的演算法完全沒有機會與之衝突——簡單、快速、優雅，沒有必要關心編碼的字元邊界。</p>
+
+	<p>此外，你還可以像在簡單的位元組陣列中一樣，直接在一個 UTF-8 編碼的字串中搜索 UTF-8 編碼的非 ASCII 的子字串——無需關注碼位邊界。這要歸功於 UTF-8 的另一個設計特點——一個碼位編碼的起始位元組永遠不會與其他碼位的尾隨位元組相同。</p>
+
+
+<h2 id="myths"><a class="aId" href="#myths">有關字元計數的更多謠言</a></h2>
+
+<p>前面我們說過，有一種流行的觀點認為計數、拆分、索引或以其他方式遍歷 Unicode 字串中的碼位應該算是一種頻繁和重要的操作。在本節中，我們將更詳細地探討這點。</p>
+
+<h3 id="myth.utf16.o1"><a class="aId" href="#myth.utf16.o1">1. 可以在常數時間內對 UTF-16 中的字元計數。</a></h3>
+
+<p>這是那些認為 UTF-16 是定長編碼的人的一個常見錯誤。這是錯的。實際上 UTF-16 是變長編碼。如果你否認非 BMP 字元的存在，請參閱<a href="#faq.almostfw">這則常見問題</a>。</p>
+
+<h3 id="myth.utf32.o1"><a class="aId" href="#myth.utf32.o1">2. 可以在常數時間內對 UTF-32 中的字元計數。</a></h3>
+
+<p>這和誤用“字元”的定義有關。我們確實可以在常數時間內對 UTF-32 中的編碼單元和碼位計數。然而，碼位並不對應於使用者認知字元。即使是在 Unicode 形式化的規定中，有些碼位對應於“<em>已編碼的字元</em>”，有些對應於“<em>非字元</em>”。</p>
+
+<h3 id="myth.strlen"><a id="myth.nth.char"></a><a class="aId" href="#myth.strlen">3. 對已編碼的字元或碼位計數很重要。</a></h3>
+
+<p>我們認為，人們經常誇大了碼位的重要性，這通常是由於誤解了 Unicode 的複雜性。Unicode 也只是反映了人類語言的複雜性。我們很容易就能數出“Abracadabra”裡有幾個字元，但再來看這個字串：</p>
+
+<p class="display">Приве́т नमस्ते שָׁלוֹם</p>
+
+<p>這裡包含了 22 (!) 個碼位，卻只有 16 個語素群。如果將其轉換為 <a href="http://unicode.org/reports/tr15/">NFC</a> 形式，可以減少到 20 個碼位。即使這樣，其中的碼位數量與幾乎任何軟體工程任務無關。也許把字串轉換為 UTF-32 是唯一一個例外。例如：</p>
+
+<ul>
+	<li>游標移動和文字選擇等，應使用“<em>語素群</em>”。 <!-- 5.11 --></li>
+
+	<li>在限制輸入欄位、檔案格式、協議或資料庫中字串的長度時，長度單位是某些已知編碼的<em>編碼單元</em>。這裡的原因是，無論是在記憶體、磁碟還是某一特定的資料結構中，任何長度限制都來自於底層給字串分配的固定大小的儲存空間。</li>
+
+	<li>螢幕上字串的長度與字串的碼位數量無關，需要從渲染引擎那裡取得。即使是等寬字型和終端，一個碼位也不一定佔一列。POSIX 考慮到了這一點。 <!-- POSIX, 3.103 Column Position --></li>
+</ul>
+
+<h3 id="myth.nfc"><a class="aId" href="#myth.nfc">4. 在 NFC 中每個碼位對應一個使用者認知字元。</a></h3>
+
+<p>錯，因為 Unicode 可以表示幾乎無限多的使用者認知字元。即使是在實際使用中，大多數字符也沒有一個已完全組合的形式。例如，上述例子的 NFD 字串包含了三種<em>真實</em>語言寫的三個<em>真實</em>詞彙，其 NFC 形式也用了 20 個碼位。這數量還是遠遠超過 16 個使用者認知字元。</p>
+
+<h3 id="myth.strlen.correctness"><a class="aId" href="#myth.strlen.correctness">5. 取字串長度的 <code>length()</code> 操作必須計算使用者觀感或已編碼字元數量，否則它就是沒有正確支援 Unicode。</a></h3>
+
+<p>人們通常用“取字串長度”操作返回的數值來評判程式庫和程式語言對 Unicode 的支援程度。按照這個評判標準，大多數流行的程式語言，如 C#、Java，甚至 ICU 本身都不支援 Unicode。例如，對於這個單字元的字串“🐨”，用 UTF-16 作為內部編碼的話，其長度通常是 2；而使用 UTF-8 的語言則會認為其長度是 4。誤解的根源在於，這些語言的規範用“字元”來表示一個編碼單元，程式設計師則誤以為它是別的什麼。</p>
+
+<p>那就是說，這些 API 返回的編碼單元數量有最大的實際意義。把一個 UTF-8 字串寫入檔案時，重要的就是位元組數量。另一方面，計算任何其他意義上的“字元”數量就不是很有用。</p>
+
+<h2 id="conclusions"><a class="aId" href="#conclusions">我們的結論</a></h2>
+
+<p>UTF-16 是變長編碼，又太佔空間，在各種意義上都是最糟糕的。它只是因歷史原因而存在，引發了無數混亂。我們希望能進一步減少它的使用。</p>
+
+<p>相比於對原生平臺 API 的互操作性，可移植性、跨平臺相容性和簡樸性更加重要。所以，最好的辦法是隨處使用 UTF-8 窄字串，在用不支援 UTF-8 而接受寬字串的平臺 API（如 Windows API）時來回轉換。與字串相關的系統 API 打交道時（如 UI 程式碼和檔案系統 API），<a href="#faq.cvt.perf">效能幾乎不是問題</a>。在應用程式裡統一編碼是莫大的優勢，<a href="#faq.liberal">我們找不到充足的理由來反駁</a>。</p>
+
+<p>說到效能，計算機往往使用字串通訊（例如 HTTP 報頭、XML、SOAP）。很多人認為不應該用文字通訊協議，但實際上通訊協議幾乎都用英語和 ASCII 字元組成，UTF-8 更有優勢。對不同類的字串用不統一的編碼使複雜度大大上升，更容易引發問題。</p>
+
+<p>我們尤其認為給 C++ 標準增加 <code>wchar_t</code> 是一個錯誤，給 C++11 增加 Unicode 亦然。我們更想要一個能儲存任意 Unicode 資料的<em>基本執行字符集</em>。然後，讓每一個 <code>std::string</code> 或 <code>char*</code> 引數都相容 Unicode。“只要這裡接受文字，就能相容 Unicode”——有了 UTF-8，這就是小菜一碟。</p>
+
+<p><a href="http://www.boost.org/doc/libs/1_58_0/libs/locale/doc/html/rationale.html">標準庫的 facet 有一堆設計缺陷</a>。比如 <code>std::numpunct</code>、<code>std::moneypunct</code> 和 <code>std::ctype</code> 不支援變長編碼字元（UTF-8 的非 ASCII 部分和 UTF-16 的非 BMP 部分），以及沒有為轉換提供足夠的資訊。這些問題亟待修復：</p>
+
+<ul>
+	<li><code>decimal_point()</code> 和 <code>thousands_sep()</code> 應返回字串而不是單個編碼單元。C 語言的 <code>localeconv</code> 函式就是這麼做的，儘管這函式無法自定義。</li>
+
+	<li><code>toupper()</code> 和 <code>tolower()</code> 不應該按一個編碼單元為一項，因為這樣不支援 Unicode。比如拉丁文 ﬄ 連字必須轉換成 FFL，德文 ß 要轉換成 SS（有個大寫形式 ẞ，但傳統大小寫規則不用它）。此外，某些語言（如希臘語）的小寫字母有詞尾變形，所以轉換例程得注意到字母的位置才能正確轉換大小寫。</li>
+</ul>
+
+
+<h2 id="windows"><a class="aId" href="#windows">如何在 Windows 上處理文字</a></h2>
+
+<p>本節主要談跨平臺庫開發和 Windows 程式設計。Windows 平臺的問題是，它的窄字串系統 API（至今仍）不支援 Unicode。給 Windows API 傳遞 Unicode 字串的唯一方法是轉換為 UTF-16（又名寬字串）。</p>
+
+<p>需要注意的是，我們的準則與微軟的原版指南截然相反。我們的方法是在臨近 API 呼叫時才轉換字串，而不長期持有寬字串資料。前面的章節已經說明，這樣做可以提升效能和穩定性，保持程式碼簡潔，更有利於與其他軟體互動。</p>
+
+<ul>
+	<li>不要在臨近接受 UTF-16 引數的 API 之外的地方用 <code>wchar_t</code> 或 <code>std::wstring</code>。</li>
+
+	<li>不要在接受 UTF-16 引數的 API 之外的地方用 <code>_T(&quot;&quot;)</code> 或 <code>L&quot;&quot;</code> 字面量。</li>
+
+	<li>不要使用對 <code>UNICODE</code> 常量敏感的型別、函式等，如 <code>LPTSTR</code>、<code>CreateWindow()</code> 和 <code>_T()</code> 巨集，而要用 <code>LPWSTR</code>、<code>CreateWindowW()</code> 和顯式 <code>L""</code> 字面量。</li>
+
+	<li>然而，要始終定義上 <code>UNICODE</code> 和 <code>_UNICODE</code>，來避免不小心把 UTF-8 窄字串傳遞給 ANSI WinAPI 並且通過編譯。可以修改 VS 專案設定，名字叫做“<em>使用 Unicode 字符集</em>”。</li>
+
+	<li>在程式的任何地方，都認為 <code>std::string</code> 和 <code>char*</code> 變數是 UTF-8。</li>
+
+	<li>如果你能寫 C++，下述的 <code>narrow()</code>/<code>widen()</code> 轉換函式對於內聯轉換語法非常實用。當然你也可以用別的 UTF-8/UTF-16 轉換程式碼。</li>
+
+	<li>
+		只用接受寬字元（<code>LPWSTR</code>）的 Win32 函式。嚴禁使用接受 <code>LPTSTR</code> 和 <code>LPSTR</code> 的函式。這樣傳遞引數：
+		<pre><code>::SetWindowTextW(widen(標準庫字串變數 或 &quot;字串字面量&quot;).c_str())</code></pre>
+		這種方法使用下述的轉換函式。另請參閱，<a href="#faq.cvt.perf">有關轉換效能的說明</a>。
+	</li>
+
+	<li>
+		對於 MFC 字串：
+		<pre><code>CString someoneElse; // MFC 引入的某字串。
+
+// 在傳遞給別的 API 呼叫前儘早轉換掉：
+std::string s = str(boost::format(&quot;你好 %s\n&quot;) % narrow(someoneElse));
+AfxMessageBox(widen(s).c_str(), L&quot;錯誤&quot;, MB_OK);</code></pre>
+	</li>
+
+	<li>對於 .NET 開發人員：使用基於 UTF-16 的原生字串可能難以避免。謹記字串類的介面嚴重暴露了其實現細節。例如，<code>string[index]</code> 操作可能返回某字元的一部分（UTF-8 位元組陣列也如此）。當序列化字串到輸出檔案或通訊裝置時，記得要指定 <code>Encoding.UTF8</code>。準備好接受轉換（比如典型的 ASP.NET Web 應用程式輸出 UTF-8 編碼的 HTML 時）引起的效能損失。</li>
+</ul>
+
+<h3 id="how.files"><a class="aId" href="#how.files">在 Windows 上應付檔案、檔名和 fstream</a></h3>
+
+<ul>
+	<li>始終以 UTF-8 輸出文字檔案。</li>
+
+	<li>為了 <a href="http://en.wikipedia.org/wiki/RAII">RAII/OOD</a>，避免使用 <code>fopen()</code>。如果非要用，就用 <code>_wfopen()</code>，並且遵循前述的 WinAPI 呼叫約定。</li>
+
+	<li>不要把 <code>std::string</code> 或 <code>const char*</code> 檔名傳遞給 <code>fstream</code> 家族的引數。MSVC CRT 不支援 UTF-8 引數，但是有個非標準擴充套件，這樣用：</li>
+
+	<li>
+		用 <code>widen</code> 來把 <code>std::string</code> 轉換成 <code>std::wstring</code>：
+		<pre><code>std::ifstream ifs(widen(&quot;你好&quot;), std::ios_base::binary);</code></pre>
+		如果 MSVC 對 <code>fstream</code> 的態度有所悔改，我們終將手工去掉這樣的轉換。
+	</li>
+
+	<li>這段程式碼不跨平臺，將來肯定要手動修改。</li>
+
+	<li>或者可以把轉換封裝起來。</li>
+</ul>
+
+
+<h3 id="how.cvt"><a class="aId" href="#how.cvt">轉換函式</a></h3>
+
+<p>本指南使用 <a href="http://cppcms.com/files/nowide/html/">Boost.Nowide 庫</a>中的轉換函式（它還沒進入 boost 官方庫）：</p>
+
+<pre><code>std::string narrow(const wchar_t *s);
+std::wstring widen(const char *s);
+std::string narrow(const std::wstring &amp;s);
+std::wstring widen(const std::string &amp;s);</code></pre>
+
+<p>本庫還封裝了常用 C 和 C++ 庫函式，提供了應付檔案操作和用 iostream 讀寫 UTF-8 的方法。</p>
+
+<p>用 Windows 的 <code>MultiByteToWideChar</code> 和 <code>WideCharToMultiByte</code> 函式也很容易實現上述函式和封裝。你還可以用別的（也許更快的）轉換例程。</p>
+
+
+<h2 id="faq"><a class="aId" href="#faq">常見問題</a></h2>
+
+<ol class="faqList">
+	<li>
+		<h3 id="faq.linuxer"><a class="aId" href="#faq.linuxer">Q: 你是不是 Linux 人？你是不是想趁機反對 Windows？</a></h3>
+		<p>A: 不，Windows 伴我成長。我主要還是在 Windows 上做開發。我認為微軟在字串領域誤入歧途，因為他們比別的廠商更早做了決定。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.anglophile"><a id="faq.angle.saxon"></a><a class="aId" href="#faq.anglophile">Q: 你是不是親英派？你是不是暗自認為英語字母表和英國文化是世界上最好的？</a></h3>
+		<p>A: 不，我家鄉的語言不在 ASCII 碼錶中。我認為用單位元組能編碼 ASCII 字元的格式不一定是親英派，甚至與人類互動無關。你可以爭辯說本來就不應該存在程式原始碼、網頁、XML 檔案、作業系統檔名等機對機文字介面。但既然存在，那麼說明文字不一定是給人類看的。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.why.care"><a class="aId" href="#faq.why.care">Q: 你們這幫人到底在想什麼？我用 C# 和/或 Java 程式設計，完全不用考慮什麼編碼啊。</a></h3>
+
+		<p>A: 並非如此。C# 和 Java 提供的 <code>char</code> 型別都是 16 位元的。恭喜你，它不一定能完整表示一個 Unicode 字元。.NET 索引操作 <code>str[i]</code> 也是操作在內部表示單元上，所以這又是一個不完全的抽象。操作子字串的方法會興高采烈地把非 BMP 字元一刀兩斷，返回一個無效的字串。</p>
+
+		<p>此外，你還要注意在往磁碟上的檔案、網路通訊、外部裝置或其他程式要讀取的地方寫文字時所使用的編碼。無論內容是什麼都請使用 <code>System.Text.Encoding.UTF8</code> (.NET)，而不要用 <code>Encoding.ASCII</code>、UTF-16 或手機 PDU。</p>
+
+		<p>底層框架選錯了內部字串表示的方法，影響了 ASP.NET 這樣的 Web 框架：網路應用幾乎全要用 UTF-8 來輸出（和輸入）字元，在大流量的網路應用和服務中，字串轉換導致了顯著開銷。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.utf8.fossil"><a class="aId" href="#faq.utf8.fossil">Q: UTF-8 不就是一個相容 ASCII 的嘗試嗎？為什麼還要用這老古董？</a></h3>
+		<p>A: 不論原來 UTF-8 是否在創造時是作為一個相容性措施，現在它比任何其它 Unicode 編碼更好，也更流行。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.almostfw"><a class="aId" href="#faq.almostfw">Q: 佔用超過兩位元組的 UTF-16 字元在實際生活中十分罕見，所以 UTF-16 就可以看作是一個定長編碼，有一堆好處。我們就不能無視這些字元嗎？</a></h3>
+		<p>A: 你不打算讓你的軟體設計完整支援 Unicode，是在開玩笑嗎？那麼，既然你打算支援，而非 BMP 字元罕見就不支援，除了給軟體測試增加難度，實在沒什麼好處。然而，真正值得在意的是，真實的應用程式不怎麼操作字串——只是原封不動地傳遞字串。這意味著“幾乎定長”幾乎沒有效能優勢（參見“效能”），讓字串短一點倒有可能挺重要。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.liberal"><a class="aId" href="#faq.liberal">Q: 只要程式設計師知道如何使用，為什麼不讓他們在程式內部選擇他們最愛的編碼？</a></h3>
+		<p>A: 我們不反對任何編碼的正確使用。但是如果同一個型別，比如 <code>std::string</code>，根據上下文語境有不同的含義，就引發問題了。有些人會認為它意味著“ANSI 內碼表”，另一些人會認為“這程式碼有問題，不支援非英語文字”。在我們的程式裡，它就意味著支援 Unicode 的 UTF-8 字串。這樣的分歧是許多 bug 和苦惱的源泉。我們的世界實在不需要讓事情變得更復雜了。整個行業因此出現了一堆有 Unicode 問題的軟體。JoelOnSoftware <a href="http://www.joelonsoftware.com/articles/Unicode.html" rel="nofollow">認為</a>，要想消滅這些有問題的軟體，就得讓每一個程式設計師都意識到編碼的問題。我們堅信，只要讓軟體 API 預設使用統一的主流編碼，程式設計師<a href="#cookie">不需要成為一個語言文字專家</a>就能夠正確地寫一個檔案複製程式了。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.win.liberal"><a class="aId" href="#faq.win.liberal">Q: 我的應用程式只有圖形介面，又不做 IP 通訊，也不做檔案讀寫。為什麼我呼叫 Windows API 的時候非要來來回回轉換字串，而不是乾脆只用寬字串變數呢？</a></h3>
+		<p>這是個合理的捷徑。確實，這種情況下用寬字串沒有問題。但是如果你將來打算加個配置檔案或日誌檔案，請考慮把字串都轉換成窄字串。這樣可以免除後患。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.def.unicode"><a class="aId" href="#faq.def.unicode">Q: 既然你不打算用 Windows 的 <code>LPTSTR</code>/<code>TCHAR</code> 等巨集，為什麼還要開啟 <code>UNICODE</code> 定義呢？</a></h3>
+		<p>A: 這是一個額外的安全措施，防止將 UTF-8 編碼的 <code>char*</code> 字串傳入那些接受 ANSI 字串的 Windows API 函式。我們想產生一個編譯錯誤。與這個情況類似，在 Windows 上將一個 <code>argv[]</code> 字串傳入 <code>fopen()</code> 也是一個難以發現的 bug。Windows 假定使用者不會傳入非當前碼頁的檔名。手工測試通常不能發現這種問題，除非你的測試員能熟練地偶爾傳入一些中文檔名。然而這還是個錯誤的程式邏輯。有了 <code>UNICODE</code> 定義，這種情況就會出編譯錯誤。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.naive"><a class="aId" href="#faq.naive">Q: 認為微軟終將停止使用寬字串是不是太幼稚了？</a></h3>
+		<p>A: 讓我們首先看到他們支援 <code>CP_UTF8</code> 作為有效內碼表的那一天。這不會很難。之後，我們認為 Windows 開發者就找不到理由繼續使用寬字元 API。而且，加入對 <code>CP_UTF8</code> 的支援就能直接“修復”一些已有不支援 Unicode 的程式和庫。</p>
+
+		<p>一些人說加入 <code>CP_UTF8</code> 支援會<em>破壞</em>現有使用 ANSI API 的程式，據說是因為這樣，微軟只好建立一個寬字串 API。這是錯的。甚至一些流行的 ANSI 編碼也是變長的（例如 Shift JIS），所以正確的程式碼都能搞定變長編碼。微軟選擇 UCS-2 單純是歷史原因——在 UTF-8 發明前，人們認為 Unicode “只是一個寬的 ASCII”，還認為使用定長編碼很重要。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.boms"><a class="aId" href="#faq.boms">Q: 你對於 BOM （位元組順序標記）是怎麼看的？</a></h3>
+		<p>A: 根據 Unicode 標準 (v6.2, p.30): <q>UTF-8 既不要求也不推薦使用 BOM</q>。</p>
+		<p>位元組順序問題又是一個避免 UTF-16 的理由。UTF-8 沒有位元組順序問題，UTF-8 BOM 的存在只是用來宣告這是一個 UTF-8 流。如果只有 UTF-8 是唯一流行的編碼（在網際網路世界已經是這樣），BOM 就是多餘的。實際上，現在大多數 UTF-8 的文字檔案都省略了 BOM。</p>
+		<p>我們無法接受，即使是在像檔案連線這樣簡單的情形下，所有現有的程式碼都得注意到 BOM 的問題。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.crlf"><a class="aId" href="#faq.crlf">Q: 你如何評價行尾標記？</a></h3>
+		<p>A: 永遠使用 <code>\n (0x0a)</code> 作為行尾標記，即使是在 Windows 上。檔案應以二進位制模式讀寫，這保證了互操作性——一個程式在任何系統上都會給出相同結果。既然 C 和 C++ 標準採用了 <code>\n</code> 作為內部行尾表示，這就導致了所有檔案會以 POSIX 慣例輸出。檔案在 Windows 上用“記事本”開啟可能會出問題；然而任何像樣的文字編輯器都能理解這樣的行尾。</p>
+		<p>我們也偏好 SI 單位、<a href="https://en.wikipedia.org/?title=ISO_8601" rel="nofollow">ISO-8601</a> 日期格式，用句點而不是<a href="https://en.wikipedia.org/wiki/Decimal_mark#Countries_using_Arabic_numerals_with_decimal_comma" rel="nofollow">逗號</a>作為小數點。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.uni.perf"><a class="aId" href="#faq.uni.perf">Q: 那文字處理演算法、位元組對齊之類的效能問題呢？</a></h3>
+		<p>A: 使用 UTF-16 真的更好嗎？可能是的。ICU 用 UTF-16 是歷史因素，這樣的話就難以比較。然而，大部分情況下字串是作為 cookie 對待，不是動不動就排序或反轉。一個更稠密的編碼就更有利於效能。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.utf16.fault"><a class="aId" href="#faq.utf16.fault">Q: 人們誤用 UTF-16 並誤以為它每個字元就是 16 位元，是不是失誤？</a></h3>
+		<p>A: 不一定。不過確實，各種設計的一個重要特性就是安全性，編碼也不例外。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.confuse"><a class="aId" href="#faq.confuse">Q: 如果 <code>std::string</code> 表示 UTF-8，那用 <code>std::string</code> 儲存純文字的時候不會弄混嗎？</a></h3>
+		<p>A: 沒有純文字這種概念。沒理由在一個名叫“string”的類裡儲存僅 ASCII 或 ANSI 內碼表編碼的文字。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.cvt.perf"><a class="aId" href="#faq.cvt.perf">Q: 在 Windows 中傳遞字串時，UTF-8 和 UTF-16 之間的轉換不會拖慢我的程式嗎？</a></h3>
+
+		<p>A: 首先，無論用哪種做法，你肯定會做<em>一些</em>轉換，要麼是系統呼叫，要麼是與世界互動。例如，用 TCP 傳送一段文字字串。而且，那些接受字串的系統 API 通常是執行原本就慢的任務，比如使用者介面或檔案系統操作。如果你的程式中全是與系統 API 的互動，我們來看個小實驗。</p>
+
+		<p>作業系統 API 的一個典型用法就是開啟檔案。執行以下函式在我的機器上用了 (184 ± 3)μs：</p>
+
+		<pre><code>void f(const wchar_t* name)
+{
+    HANDLE f = CreateFile(name, GENERIC_WRITE, FILE_SHARE_READ, 0, CREATE_ALWAYS, 0, 0);
+    DWORD written;
+    WriteFile(f, &quot;Hello world!\n&quot;, 13, &amp;written, 0);
+    CloseHandle(f);
+}</code></pre>
+
+		<p>而這個用了 (186 ± 0.7)μs：</p>
+
+		<pre><code>void f(const char* name)
+{
+    HANDLE f = CreateFile(widen(name).c_str(), GENERIC_WRITE, FILE_SHARE_READ, 0, CREATE_ALWAYS, 0, 0);
+    DWORD written;
+    WriteFile(f, &quot;Hello world!\n&quot;, 13, &amp;written, 0);
+    CloseHandle(f);
+}</code></pre>
+
+		<p>（兩次都用了 <code>name=&quot;D:\\a\\test\\subdir\\subsubdir\\this is the sub dir\\a.txt&quot;</code>，取五次平均。我們用了一個優化過的 <code>widen</code>，其利用了 C++11 保證 <code>std::string</code> 連續儲存的特性。）</p>
+
+		<p>只有 (1 ± 2)% 的開銷。況且，<code>MultiByteToWideChar</code> 不是最快的 UTF-8↔UTF-16 轉換函式。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.literal"><a class="aId" href="#faq.literal">Q: 在 C++ 原始碼中如何書寫 UTF-8 字串字面量？</a></h3>
+
+		<p>A: 如果你對你的軟體進行了國際化，所有非 ASCII 字串會從額外的翻譯資料庫載入，那就不存在問題。</p>
+
+		<p>如果你還想嵌入特殊字元，你可以按如下方法做。在 C++11 中你可以：</p>
+
+		<p class="display"><code>u8&quot;∃y ∀x ¬(x ≺ y)&quot;</code></p>
+
+		<p>對不支援“u8”的編譯器你可以像這樣硬編碼 UTF-8 單元：</p>
+
+		<p class="display"><code>&quot;\xE2\x88\x83y \xE2\x88\x80x \xC2\xAC(x \xE2\x89\xBA y)&quot;</code></p>
+
+		<p>然而最直接的方式就是原樣書寫字串，並將原始檔儲存為 UTF-8 編碼：</p>
+
+		<p class="display"><code>&quot;∃y ∀x ¬(x ≺ y)&quot;</code></p>
+
+		<p>不幸的是，MSVC 會將其轉為某些 ANSI 內碼表，從而損壞字串。將檔案存為<em>無 BOM</em>的 UTF-8 可以解決。MSVC 會認為檔案已經在正確的內碼表，就不會碰你的字串。（譯者注：在 DBCS 下無效，試試在簡體中文下輸出 <code>"井\n"</code>。）然而，這樣就無法使用 Unicode 識別符號和寬字串字面量了（反正你也不會用）。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.convert"><a class="aId" href="#faq.convert">Q: 我有個基於 char 的大型 Windows 應用程式。使其支援 Unicode 最簡單的方法是什麼？</a></h3>
+		<p>保留這些 char。定義 <code>UNICODE</code> 和 <code>_UNICODE</code>，這樣忘了使用 <code>narrow()</code>/<code>widen()</code> 的情況就會有編譯錯誤。（在 Visual Studio 中勾上“<strong>使用 Unicode 字符集</strong>”選項）找出所有用到 <code>fstream</code> 和 <code>fopen()</code> 的地方，改成上述的寬字元過載。這樣就基本完成了。</p>
+		<p>如果你用到了不支援 Unicode 的第三方庫，例如它會原樣將檔名字串傳遞給 <code>fopen()</code>，你得用上述像 <code>GetShortPathName()</code> 這樣的工具來替代解決。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.python"><a class="aId" href="#faq.python">Q: Python 呢？我聽說他們為更好支援 Unicode，在 v3.3 改進了不少。</a></h3>
+		<p>A: 大概是吧，不過他們不必大費周折也能支援得更好。在 CPython v3.3 參考實現中，他們改了內部字串表示方法。原來的 UTF-16，根據字串實際內容，換成了三種可能的編碼（ISO-8859-1、UCS-2 或 UCS-4）。在字串中加入一個非 ASCII 或非 BMP 字元，常常會使整個字串被隱式轉換為別的編碼。指令碼並不知道字串內部的實際編碼。這樣的設計本來是為了優化對 Unicode 碼位的<em>索引操作</em>。然而對大部分用途來說，我們認為對碼位——而不是語素群——的計數或索引<a href="#myth.strlen">並不重要</a>。據我們所知，Python 不支援語素群的計數或索引。</p>
+
+		<p>因此，我們反對黑盒化處理字串，推薦內部採用 UTF-8 來表示字串，且在 API 中直接暴露 UTF-8 的表示。Python 在此次改進之前，字串索引操作計數的是編碼單元而不是碼位。這樣本可以簡化實現且提升效能，比如指令碼用於處理 Web 時。Web 上的文字大多已經是 UTF-8 編碼，致使 Python 程式語言在服務端更為適用。你可能會認為這是阻止指令碼程式設計師錯切字串的安全措施，但錯把語素群切斷不也很危險麼？ 即使 Python 現在已經完全支援 Unicode 了，但是我們認為這個少有歷史包袱的現代化工具應該在文字處理方面做得更好。</p>
+
+		<p>CPython 之外，JPython 和 IronPython 依賴於託管平臺（分別是 Java 和 .NET）不幸選擇的字串編碼。所以必須特別關照代理對問題。</p>
+	</li>
+
+	<li>
+		<h3 id="faq.ood"><a class="aId" href="#faq.ood">Q: 但是為什麼用 <code>std::string</code>？做一個支援 UTF-8 的字串類難道不是面向物件的更好方案嗎？</a></h3>
+		<p>A: 並非每一段字串相關的程式碼都涉及到字串的處理和文字的驗證。檔案複製程式只需要用一個簡單的位元組緩衝區即可接受 Unicode 檔名並傳遞給檔案 IO 例程。如果你打算設計一個接受字串的程式庫，只要用簡單、標準且輕量的 <code>std::string</code> 就好。另一方面，重新發明一個新字串類，然後逼著每個人都用你的特製介面是不對的。當然，如果某人不僅僅需要來回傳遞字串，就應該用合適的文字處理工具。然而，秉承 STL 的容器/演算法分離的精神，這樣的工具最好和具體用哪個類無關。事實上，<a href="http://www.gotw.ca/gotw/084.htm">還有些人認為</a> <code>std::string</code> 的介面過於臃腫，大部分功能應該從 <code>std::string</code> 類裡移出來。</p>
+	</li>
+	<li>
+		<h3 id="faq.whats.now"><a class="aId" href="#faq.whats.now">Q: 我已經在用這種方法了。我希望我們的展望成真。我應該怎麼辦呢？</a></h3>
+		<p>A: 去傳播福音吧。</p>
+		<p>重審你的程式碼，看看哪個庫在跨平臺支援 Unicode 的程式碼中使用讓你最為頭痛。給那個庫的作者開一張 bug 報告單。如果你是 C 或 C++ 程式庫作者，用 <code>char*</code> 和 <code>std::string</code>，預設 UTF-8 編碼，並且拒絕支援 ANSI 內碼表——因為這東西本來就不支援 Unicode。</p>
+		<p>如果你是微軟員工，請推進支援並實現 <code>CP_UTF8</code> 作為窄 API 內碼表。</p>
+		<p>進一步的想法：</p>
+		<ul>
+			<li>為常見的第三方庫（如 PugiXML、LibTIFF 等）做 UTF-8 支援，並建立一個倉庫來放此類補丁。這些庫是用標準 C 語言寫的，並不在乎 Windows。</li>
+			<li>為 Windows 建立一個標準庫函式（如 <code>fopen()</code>）、<code>main()</code> 和全域性環境變數的連結時補丁，用來做引數轉換。</li>
+		</ul>
+	</li>
+</ol>
+
+
+<h2 id="about"><a class="aId" href="#about">關於作者</a></h2>
+
+<p>本宣言的作者是 <a href="http://meshnotes.com/9SrRpAypTr8e">Pavel Radzivilovsky</a>、<a href="http://stannum.co.il/about">Yakov Galka</a> 和 <a href="http://slavanov.com/">Slava Novgorodov</a>。這是我們基於經驗和現實中程式設計師對於 Unicode 犯下真正的錯誤，遇到真正的困難的結晶。我們的目的是呼籲加深對文字問題的認識，為業界降低面向 Unicode 程式設計的難度拋磚引玉，最終提升工程師做出的程式的使用者體驗。我們與 Unicode 聯盟無關。</p>
+
+<p>特別感謝 Glenn Linderman 提供關於 Python 的資訊，Markus Künne、Jelle Geerts、Lazy Rui 和 Jan Rüegg 反饋這篇文件的缺陷和拼寫錯誤。</p>
+
+<p>本文大部分靈感來源於 <a href="http://programmers.stackexchange.com/questions/102205/should-utf-16-be-considered-harmful">StackOverflow 上 Artyom Beilis 引發的討論</a>，他是 Boost.Locale 的作者。還有些靈感來源於 <a href="http://www.visionmap.com">VisionMap</a> 的開發約定以及 Michael Hartl 的 <a href="http://tauday.com/tau-manifesto">tauday.org</a>。</p>
+
+
+<h2 id="translation"><a class="aId" href="#translation">譯者注</a></h2>
+<p>讓應用程式支援 Unicode 是不可阻擋的潮流。然而亞洲的許多軟體開發者並沒有意識到 Unicode 和 UTF-8 的重要性，製造出很多在非本土語言設定下會崩潰的應用程式。身為亞洲人，我們更應當讓自己的語言在網際網路時代得到傳承。然而對 Unicode 的無知甚至在禍害下一代：小學課本一邊炫耀著“我們有 7 萬多個漢字”，一邊教育著好奇的孩子們“一個漢字佔 2 位元組”。</p>
+
+<p>我們希望讓讀者知道，現在是時候拋棄陳舊的錯誤觀念了。支援 Unicode 方可大幅提升使用者體驗。我們建議選擇 UTF-8 而不是 UTF-16、GBK 或 GB18030 作為應用程式的預設編碼。</p>
+
+<p>感謝以下譯者：</p>
+
+<ul>
+	<li><a href="https://github.com/m13253">Star Brilliant</a></li>
+
+	<li><a href="https://github.com/gumblex">Dingyuan Wang</a></li>
+
+	<li><a href="https://github.com/dargasia">Howard Xiao</a></li>
+
+	<li><a href="https://github.com/Jamesits">James Swineson</a></li>
+
+	<li><a href="https://github.com/KexyBiscuit">Kexy Biscuit</a></li>
+</ul>
+
+<p>如果您對本譯文的遣詞造句有任何意見或建議，請訪問<a href="https://github.com/The-Orizon/utf8everywhere">本翻譯專案的 GitHub 倉庫</a>，通過提交 GitHub issue 的方式與我們取得聯絡。</p>
+
+
+<h2 id="extern"><a class="aId" href="#extern">延伸閱讀</a></h2>
+
+<ul>
+	<li><a href="http://www.unicode.org/">Unicode 聯盟</a>（Unicode 標準, <a href="http://www.unicode.org/versions/Unicode6.2.0/UnicodeStandard-6.2.pdf">PDF</a>）</li>
+
+	<li><a href="http://site.icu-project.org/">Unicode 國際化元件</a> (ICU)</li>
+
+	<li><a href="http://www.joelonsoftware.com/articles/Unicode.html">Joel 談 Unicode</a>——《每個軟體開發者絕對必須積極掌握，關於 Unicode 和字符集的最低限度常識》</li>
+
+	<li><a href="http://cppcms.sourceforge.net/boost_locale/html/">Boost.Locale</a>——C++ 的高質量本地化方案。</li>
+
+	<li>Artyom Beilis 在 StackOverflow 上提問“<a href="https://programmers.stackexchange.com/questions/102205/should-utf-16-be-considered-harmful">UTF-16 有害嗎？</a>”</li>
+
+	<li><a href="https://dev.twitter.com/docs/counting-characters">Twitter 如何計數字符</a></li>
+</ul>
+
+<h2 id="donate"><a class="aId" href="#donate">反饋</a></h2>
+
+<p>你可以在 Facebook <a href="https://www.facebook.com/UTF8Everywhere">UTF-8 Everywhere </a>主頁上留下評論和反饋。我們非常感謝你的幫助和反饋。</p>
+
+<p style="text-align:center">
+<img src="data/utf8donate.png" alt="1UTF8gQmvChQ4MwUHT6XmydjUt9TsuDRn" /><br/>
+比特幣捐款：1UTF8gQmvChQ4MwUHT6XmydjUt9TsuDRn<br/>
+捐款將用於研究和推廣事業。
+</p>
+
+<table class="layoutTable" style="border-top:1px solid silver; border-bottom:1px solid silver; padding:1ex 0ex; margin:1.5em 0 0.5em 0"><tr>
+<td><a href="https://validator.w3.org/check?uri=referer"><img src="https://www.w3.org/Icons/valid-xhtml10" alt="Valid XHTML 1.0 Strict"/></a> <a href="https://jigsaw.w3.org/css-validator/check/referer"><img src="https://jigsaw.w3.org/css-validator/images/vcss" alt="Valid CSS!"/></a></td>
+<td style="text-align:right"><a href="http://utf8everywhere.org/">原文</a>更新時間: 2016-07-19<br />譯文更新時間: 2016-10-02</td>
+</tr></table>
+</div>
+
+</body>
+</html>
