@@ -168,3 +168,6 @@ a:visited { color: #446688; }
 	padding-bottom: 0.75em;
 }
 
+pre > code {
+	padding: 0;
+}
