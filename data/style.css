@@ -6,6 +6,7 @@ body {
 	max-width: 48em;
 	text-align: justify;
 	counter-reset: section;
+	word-wrap: break-word;
 }
 
 code,kbd,samp,tt {
@@ -126,7 +127,7 @@ a:hover {
 
 a:visited { color: #446688; }
 
-.aId:link, .aId:hover, .aId:visited {
+h1 > a:link, h1 > a:visited, h2 > a:link, h2 > a:visited, h3 > a:link, h3 > a:visited {
 	color: inherit;
 	text-decoration: none;
 }
@@ -168,6 +169,8 @@ a:visited { color: #446688; }
 	padding-bottom: 0.75em;
 }
 
-pre > code {
-	padding: 0;
+.languageBar {
+	text-align: right;
+	font-size: 0.9em;
+	margin: 0.5em 0;
 }
